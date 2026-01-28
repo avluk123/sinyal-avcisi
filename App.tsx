@@ -26,6 +26,9 @@ export default function App() {
   const [targetBearing, setTargetBearing] = useState<number | null>(null);
   const [baseStations, setBaseStations] = useState<BaseStation[]>([]);
   
+  // Ref to track if stations have been generated to prevent constant regeneration
+  const stationsGeneratedRef = useRef(false);
+  
   // Automatic Mapping State
   const [autoMap, setAutoMap] = useState<boolean>(false);
 
@@ -116,9 +119,11 @@ export default function App() {
           const bearing = calculateBestDirection(lat, lng);
           setTargetBearing(bearing);
           
-          // Generate stations only if not already generated or user moved significantly
-          if (baseStations.length === 0) {
+          // CRITICAL FIX: Only generate stations ONCE when we first get a valid location.
+          // Using a ref ensures we don't regenerate them on every GPS jitter.
+          if (!stationsGeneratedRef.current) {
              setBaseStations(generateBaseStations(lat, lng));
+             stationsGeneratedRef.current = true;
           }
           
           const jitter = Math.floor(Math.random() * 5) - 2;
@@ -141,7 +146,7 @@ export default function App() {
       setGeoError("Tarayıcınız konum servisini desteklemiyor.");
       setShowDiagnostics(true);
     }
-  }, []); // baseStations dependency removed to prevent loop, handled inside logic
+  }, []); 
 
   // 2. Network Info polling
   useEffect(() => {
@@ -208,9 +213,10 @@ export default function App() {
       if (adviceData) {
         setAdvice(adviceData);
       } else {
-        alert("Yapay zeka analiz yapamadı. API Key eksik veya kota dolmuş olabilir.");
+        alert("Yapay zeka yanıt vermedi. Lütfen internet bağlantınızı kontrol edip tekrar deneyin.");
       }
     } catch (e) {
+      console.error(e);
       alert("Bir bağlantı hatası oluştu.");
     } finally {
       setLoadingAdvice(false);
