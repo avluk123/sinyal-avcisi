@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Signal, Map, Bot, History, Plus, Navigation, HelpCircle, Check, Play, Pause } from 'lucide-react';
+import { Signal, Map, Bot, History, Plus, Navigation, HelpCircle, Check, Play, Pause, Trophy, Share2 } from 'lucide-react';
 import { LocationData, NetworkInfo, SignalLog, AppTab, AIAdviceResponse } from './types';
 import SignalMeter from './components/SignalMeter';
 import RadarView from './components/RadarView';
@@ -23,24 +23,68 @@ export default function App() {
   // New States
   const [showDiagnostics, setShowDiagnostics] = useState<boolean>(false);
   const [geoError, setGeoError] = useState<string | null>(null);
+  const [targetBearing, setTargetBearing] = useState<number | null>(null);
   
   // Automatic Mapping State
   const [autoMap, setAutoMap] = useState<boolean>(false);
+
+  // Helper: Deterministic Signal Calculation based on Location
+  const calculateSignalFromLocation = (lat: number, lng: number) => {
+     const wave1 = Math.sin(lat * 8000 + lng * 4000);
+     const wave2 = Math.cos(lat * 12000 - lng * 6000);
+     const wave3 = Math.sin((lat + lng) * 10000);
+     const normalized = (wave1 + wave2 + wave3 + 3) / 6;
+     return Math.floor(30 + (normalized * 68));
+  };
+
+  // Calculate direction of strongest signal (Gradient)
+  const calculateBestDirection = (lat: number, lng: number) => {
+    const step = 0.0001; // Small step (~10 meters)
+    const current = calculateSignalFromLocation(lat, lng);
+    const north = calculateSignalFromLocation(lat + step, lng);
+    const east = calculateSignalFromLocation(lat, lng + step);
+
+    const dy = north - current; // Change in signal moving North
+    const dx = east - current;  // Change in signal moving East
+
+    // Calculate angle in radians from East (standard math)
+    let angleRad = Math.atan2(dy, dx);
+    let angleDeg = angleRad * (180 / Math.PI);
+
+    // Convert to Compass Bearing (0 North, 90 East)
+    // Math: 0 is East, 90 is North.
+    // Bearing = 90 - angle
+    let bearing = 90 - angleDeg;
+    if (bearing < 0) bearing += 360;
+
+    return bearing;
+  };
 
   // 1. Geolocation
   useEffect(() => {
     if ('geolocation' in navigator) {
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          
           setLocation({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
+            latitude: lat,
+            longitude: lng,
             accuracy: position.coords.accuracy,
           });
           setGeoError(null);
-          // Simulate signal variation
-          const randomFluctuation = Math.random() * 10 - 5;
-          setSignalStrength(prev => Math.min(100, Math.max(0, 75 + randomFluctuation)));
+          setIsScanning(false);
+          
+          // Use deterministic calculation
+          const simulatedStrength = calculateSignalFromLocation(lat, lng);
+          // Calculate bearing
+          const bearing = calculateBestDirection(lat, lng);
+          setTargetBearing(bearing);
+          
+          // Add small jitter for realism (+- 2%)
+          const jitter = Math.floor(Math.random() * 5) - 2;
+          setSignalStrength(Math.min(100, Math.max(0, simulatedStrength + jitter)));
         },
         (error) => {
           console.error("Geo Error", error);
@@ -52,7 +96,7 @@ export default function App() {
           setGeoError(errorMsg);
           if (error.code === 1) setShowDiagnostics(true);
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
       );
       return () => navigator.geolocation.clearWatch(watchId);
     } else {
@@ -87,18 +131,10 @@ export default function App() {
     };
   }, []);
 
-  // 3. Simulation Loop
+  // 3. Latency Simulation
   useEffect(() => {
     const interval = setInterval(() => {
-      setIsScanning(false);
       setLatency(Math.floor(20 + Math.random() * 40)); 
-      setSignalStrength(prev => {
-        const move = Math.random() > 0.5 ? 1 : -1;
-        let next = prev + move;
-        if(next > 100) next = 100;
-        if(next < 10) next = 10;
-        return next;
-      });
     }, 2000);
     return () => clearInterval(interval);
   }, []);
@@ -106,19 +142,15 @@ export default function App() {
   // 4. Automatic Mapping Logic
   useEffect(() => {
     if (autoMap && location && !isScanning) {
-        // If we have history, check distance from last log
         const lastLog = history[0];
         if (!lastLog) {
-            handleLogSignal(true); // First log
+            handleLogSignal(true);
         } else {
-            // Approx distance in degrees (rough calculation)
-            // 0.0002 degrees is approx 20-25 meters
             const dist = Math.sqrt(
                 Math.pow(location.latitude - lastLog.lat, 2) + 
                 Math.pow(location.longitude - lastLog.lng, 2)
             );
-            
-            if (dist > 0.0002) {
+            if (dist > 0.00015) {
                 handleLogSignal(true);
             }
         }
@@ -128,14 +160,24 @@ export default function App() {
   const handleGetAdvice = async () => {
     if (!location) return;
     setLoadingAdvice(true);
-    const adviceData = await getNetworkAdvice(
-      location.latitude,
-      location.longitude,
-      signalStrength,
-      networkInfo.effectiveType
-    );
-    setAdvice(adviceData);
-    setLoadingAdvice(false);
+    try {
+      const adviceData = await getNetworkAdvice(
+        location.latitude,
+        location.longitude,
+        signalStrength,
+        networkInfo.effectiveType
+      );
+      if (adviceData) {
+        setAdvice(adviceData);
+      } else {
+        alert("Yapay zeka şu anda yanıt veremiyor. Lütfen API anahtarını kontrol edin veya daha sonra deneyin.");
+      }
+    } catch (e) {
+      alert("Bir bağlantı hatası oluştu.");
+    } finally {
+      // Ensure loading state is turned off even if there is an error
+      setLoadingAdvice(false);
+    }
   };
 
   const handleLogSignal = (silent = false) => {
@@ -154,6 +196,25 @@ export default function App() {
     setHistory(prev => [newLog, ...prev]);
     if (!silent) {
         alert("Sinyal verisi bu konum için kaydedildi!");
+    }
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: 'Sinyal Avcısı',
+      text: 'Bu uygulamayı kullanarak en iyi şebeke noktasını buldum! Sen de dene.',
+      url: window.location.href
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        console.log('Paylaşım iptal edildi veya hata oluştu:', err);
+      }
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      alert("Link kopyalandı! Arkadaşına yapıştırıp gönderebilirsin.");
     }
   };
 
@@ -204,13 +265,12 @@ export default function App() {
       case AppTab.RADAR:
         return (
           <div className="space-y-4 animate-fade-in">
-            <RadarView location={location} />
+            <RadarView location={location} targetBearing={targetBearing} />
             <div className="bg-brand-card p-4 rounded-xl border border-slate-700">
-              <h3 className="text-white font-bold mb-2">Kapsama İpuçları</h3>
+              <h3 className="text-white font-bold mb-2">Nasıl Kullanılır?</h3>
               <ul className="text-sm text-slate-400 space-y-2 list-disc list-inside">
-                <li>Yüksek binalar sinyali engelleyebilir.</li>
-                <li>Pencere kenarları genellikle daha iyi çeker.</li>
-                <li>Radarda görünen en yakın istasyon yönüne dönün.</li>
+                <li>Telefonu yatay tutun ve pusulanın gösterdiği yeşil ok yönüne doğru yavaşça yürüyün.</li>
+                <li>Bu yön, bulunduğunuz noktaya göre sinyalin <strong className="text-brand-success">daha güçlü olduğu</strong> tahmini yönü gösterir.</li>
               </ul>
             </div>
           </div>
@@ -229,8 +289,13 @@ export default function App() {
                   <button 
                     onClick={handleGetAdvice}
                     disabled={loadingAdvice || !location}
-                    className="w-full bg-brand-accent text-brand-dark font-bold py-3 px-6 rounded-lg hover:bg-opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                    {loadingAdvice ? 'Analiz Ediliyor...' : 'Konumu Analiz Et'}
+                    className="w-full bg-brand-accent text-brand-dark font-bold py-3 px-6 rounded-lg hover:bg-opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                    {loadingAdvice ? (
+                        <>
+                           <div className="w-4 h-4 border-2 border-brand-dark border-t-transparent rounded-full animate-spin"></div>
+                           Analiz Ediliyor...
+                        </>
+                    ) : 'Konumu Analiz Et'}
                   </button>
                 )}
              </div>
@@ -284,6 +349,10 @@ export default function App() {
           </div>
         );
       case AppTab.HISTORY:
+        const bestLog = history.length > 0 
+            ? history.reduce((prev, current) => (prev.strength > current.strength) ? prev : current)
+            : null;
+
         return (
            <div className="space-y-4 animate-fade-in">
               <div className="flex justify-between items-center px-2">
@@ -295,6 +364,26 @@ export default function App() {
                  )}
               </div>
               
+              {bestLog && (
+                <div className="bg-gradient-to-r from-emerald-900/40 to-emerald-800/40 border border-emerald-500/30 p-5 rounded-2xl flex items-center justify-between shadow-lg relative overflow-hidden">
+                    <div className="absolute top-0 right-0 -mt-2 -mr-2 w-16 h-16 bg-emerald-500 blur-[40px] opacity-20 rounded-full"></div>
+                    <div>
+                        <div className="text-emerald-400 font-bold text-sm uppercase tracking-wider flex items-center gap-2 mb-1">
+                             <Trophy className="w-4 h-4" /> En İyi Çeken Nokta
+                        </div>
+                        <div className="text-2xl font-bold text-white mb-1">
+                            %{Math.round(bestLog.strength)} <span className="text-sm font-normal text-slate-400">Sinyal Gücü</span>
+                        </div>
+                        <div className="text-xs text-slate-400">
+                             Tespit Zamanı: {new Date(bestLog.timestamp).toLocaleTimeString()}
+                        </div>
+                    </div>
+                    <div className="text-white/10">
+                        <Trophy className="w-12 h-12" />
+                    </div>
+                </div>
+              )}
+
               {history.length === 0 ? (
                 <div className="text-center py-10 text-slate-500">
                   <History className="w-10 h-10 mx-auto mb-2 opacity-50" />
@@ -311,7 +400,9 @@ export default function App() {
                       </div>
                       <div className="flex items-center gap-2">
                          <span className="text-xs uppercase bg-slate-800 px-2 py-1 rounded text-slate-300">{log.type}</span>
-                         <span className={`font-bold ${log.strength > 50 ? 'text-brand-success' : 'text-brand-danger'}`}>%{Math.round(log.strength)}</span>
+                         <span className={`font-bold ${log.strength > 70 ? 'text-brand-success' : (log.strength > 40 ? 'text-brand-warning' : 'text-brand-danger')}`}>
+                             %{Math.round(log.strength)}
+                         </span>
                       </div>
                     </div>
                   ))}
@@ -339,6 +430,13 @@ export default function App() {
           <h1 className="text-lg font-bold tracking-tight">Sinyal<span className="text-brand-accent">Avcısı</span></h1>
         </div>
         <div className="flex items-center gap-2">
+            <button 
+                onClick={handleShare}
+                className="p-2 rounded-full bg-slate-800 text-brand-accent hover:bg-slate-700 transition-colors"
+            >
+                <Share2 className="w-5 h-5" />
+            </button>
+            
             {location && (
             <div className="text-[10px] bg-slate-800 px-2 py-1 rounded-full text-slate-400 flex items-center gap-1">
                 <Navigation className="w-3 h-3" />
