@@ -110,17 +110,18 @@ const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onClose, ge
                 <AlertTriangle className="w-4 h-4" />
                 Dikkat: Konum Kapalı
               </h4>
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <div className="text-xs text-slate-300 leading-relaxed">
                 Bu uygulama sinyal analizi yapmak için konumunuza ihtiyaç duyar.
                 <br/><br/>
                 <strong>Düzeltmek için:</strong>
                 <ol className="list-decimal list-inside mt-1 ml-1 space-y-1">
                   <li>Tarayıcı ayarlarına gidin.</li>
-                  <li>Site Ayarları > Konum seçeneğini bulun.</li>
+                  {/* Fixed JSX Syntax Error here: > changed to &gt; */}
+                  <li>Site Ayarları &gt; Konum seçeneğini bulun.</li>
                   <li>Bu site için "İzin Ver"i seçin veya sıfırlayın.</li>
                   <li>Sayfayı yenileyin.</li>
                 </ol>
-              </p>
+              </div>
             </div>
           )}
         </div>
