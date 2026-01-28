@@ -1,7 +1,19 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AIAdviceResponse } from "../types";
 
-const apiKey = process.env.API_KEY || '';
+// Safely access API key to prevent crash if process is undefined in browser environment
+const getApiKey = () => {
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+      return process.env.API_KEY;
+    }
+  } catch (e) {
+    console.warn("Environment variable access failed, API features may be disabled.");
+  }
+  return '';
+};
+
+const apiKey = getApiKey();
 
 export const getNetworkAdvice = async (lat: number, lng: number, signalStrength: number, networkType: string): Promise<AIAdviceResponse | null> => {
   // If API key is missing, return mock data or null immediately instead of hanging
