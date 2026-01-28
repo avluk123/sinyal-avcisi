@@ -1,0 +1,7 @@
+{
+  "name": "Sinyal Avcısı",
+  "description": "Mobil ağ analizi, sinyal haritası ve yapay zeka destekli kapsama alanı danışmanı.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
