@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Signal, Map, Bot, History, Plus, Navigation, HelpCircle, Check, AlertTriangle, X } from 'lucide-react';
+import { Signal, Map, Bot, History, Plus, Navigation, HelpCircle, Check, Play, Pause } from 'lucide-react';
 import { LocationData, NetworkInfo, SignalLog, AppTab, AIAdviceResponse } from './types';
 import SignalMeter from './components/SignalMeter';
 import RadarView from './components/RadarView';
@@ -15,18 +15,20 @@ export default function App() {
   const [latency, setLatency] = useState<number>(0);
   const [isScanning, setIsScanning] = useState<boolean>(true);
   
-  // Updated advice state to hold structured data or null
+  // Updated advice state
   const [advice, setAdvice] = useState<AIAdviceResponse | null>(null);
   const [loadingAdvice, setLoadingAdvice] = useState<boolean>(false);
   const [history, setHistory] = useState<SignalLog[]>([]);
   
-  // New States for Diagnostics
+  // New States
   const [showDiagnostics, setShowDiagnostics] = useState<boolean>(false);
   const [geoError, setGeoError] = useState<string | null>(null);
+  
+  // Automatic Mapping State
+  const [autoMap, setAutoMap] = useState<boolean>(false);
 
-  // Initialize Geolocation & Network Monitoring
+  // 1. Geolocation
   useEffect(() => {
-    // 1. Geolocation
     if ('geolocation' in navigator) {
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
@@ -36,7 +38,7 @@ export default function App() {
             accuracy: position.coords.accuracy,
           });
           setGeoError(null);
-          // Simulate signal variation based on movement (just for demo effect)
+          // Simulate signal variation
           const randomFluctuation = Math.random() * 10 - 5;
           setSignalStrength(prev => Math.min(100, Math.max(0, 75 + randomFluctuation)));
         },
@@ -48,10 +50,7 @@ export default function App() {
           if (error.code === 3) errorMsg = "Konum isteği zaman aşımına uğradı.";
           
           setGeoError(errorMsg);
-          // Automatically show diagnostics on permission error so user knows what to do
-          if (error.code === 1) {
-             setShowDiagnostics(true);
-          }
+          if (error.code === 1) setShowDiagnostics(true);
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
@@ -88,13 +87,11 @@ export default function App() {
     };
   }, []);
 
-  // 3. Simulation Loop for Real-time feel
+  // 3. Simulation Loop
   useEffect(() => {
     const interval = setInterval(() => {
       setIsScanning(false);
-      // Simulate ping fluctuation
       setLatency(Math.floor(20 + Math.random() * 40)); 
-      // Simulate slight signal strength movement
       setSignalStrength(prev => {
         const move = Math.random() > 0.5 ? 1 : -1;
         let next = prev + move;
@@ -105,6 +102,28 @@ export default function App() {
     }, 2000);
     return () => clearInterval(interval);
   }, []);
+
+  // 4. Automatic Mapping Logic
+  useEffect(() => {
+    if (autoMap && location && !isScanning) {
+        // If we have history, check distance from last log
+        const lastLog = history[0];
+        if (!lastLog) {
+            handleLogSignal(true); // First log
+        } else {
+            // Approx distance in degrees (rough calculation)
+            // 0.0002 degrees is approx 20-25 meters
+            const dist = Math.sqrt(
+                Math.pow(location.latitude - lastLog.lat, 2) + 
+                Math.pow(location.longitude - lastLog.lng, 2)
+            );
+            
+            if (dist > 0.0002) {
+                handleLogSignal(true);
+            }
+        }
+    }
+  }, [location, autoMap, history, isScanning]);
 
   const handleGetAdvice = async () => {
     if (!location) return;
@@ -119,9 +138,9 @@ export default function App() {
     setLoadingAdvice(false);
   };
 
-  const handleLogSignal = () => {
+  const handleLogSignal = (silent = false) => {
     if (!location) {
-      setShowDiagnostics(true);
+      if(!silent) setShowDiagnostics(true);
       return;
     }
     const newLog: SignalLog = {
@@ -133,7 +152,9 @@ export default function App() {
       type: networkInfo.effectiveType
     };
     setHistory(prev => [newLog, ...prev]);
-    alert("Sinyal verisi bu konum için kaydedildi!");
+    if (!silent) {
+        alert("Sinyal verisi bu konum için kaydedildi!");
+    }
   };
 
   const getSuitabilityColor = (suit: string) => {
@@ -151,19 +172,30 @@ export default function App() {
             <NetworkDetails info={networkInfo} latency={latency} />
             
             <div className="bg-brand-card p-4 rounded-xl border border-slate-700">
-               <h3 className="text-white font-bold mb-2">Hızlı İşlemler</h3>
+               <h3 className="text-white font-bold mb-3 flex items-center justify-between">
+                   Hızlı İşlemler
+                   {autoMap && <span className="text-[10px] bg-brand-success/20 text-brand-success px-2 py-0.5 rounded animate-pulse">OTO-KAYIT AKTİF</span>}
+               </h3>
                <div className="grid grid-cols-2 gap-3">
                  <button 
-                  onClick={handleLogSignal}
+                  onClick={() => handleLogSignal(false)}
                   className="bg-brand-accent/10 hover:bg-brand-accent/20 text-brand-accent p-3 rounded-lg flex flex-col items-center justify-center transition-colors">
                     <Plus className="w-6 h-6 mb-1" />
                     <span className="text-xs font-semibold">Burayı Kaydet</span>
                  </button>
                  <button 
+                  onClick={() => setAutoMap(!autoMap)}
+                  className={`${autoMap ? 'bg-brand-success/20 text-brand-success border border-brand-success/30' : 'bg-slate-700/50 text-slate-400'} hover:bg-opacity-70 p-3 rounded-lg flex flex-col items-center justify-center transition-all`}>
+                    {autoMap ? <Pause className="w-6 h-6 mb-1" /> : <Play className="w-6 h-6 mb-1" />}
+                    <span className="text-xs font-semibold">{autoMap ? 'Taramayı Durdur' : 'Otomatik Haritala'}</span>
+                 </button>
+               </div>
+               <div className="mt-3">
+                 <button 
                   onClick={() => setActiveTab(AppTab.ADVISOR)}
-                  className="bg-brand-warning/10 hover:bg-brand-warning/20 text-brand-warning p-3 rounded-lg flex flex-col items-center justify-center transition-colors">
-                    <Bot className="w-6 h-6 mb-1" />
-                    <span className="text-xs font-semibold">AI Analizi</span>
+                  className="w-full bg-brand-warning/10 hover:bg-brand-warning/20 text-brand-warning p-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                    <Bot className="w-5 h-5" />
+                    <span className="text-xs font-semibold">Yapay Zeka Sinyal Analizi</span>
                  </button>
                </div>
             </div>
@@ -254,12 +286,20 @@ export default function App() {
       case AppTab.HISTORY:
         return (
            <div className="space-y-4 animate-fade-in">
-              <h2 className="text-xl font-bold text-white px-2">Sinyal Geçmişi</h2>
+              <div className="flex justify-between items-center px-2">
+                 <h2 className="text-xl font-bold text-white">Sinyal Geçmişi</h2>
+                 {autoMap && (
+                     <div className="text-[10px] bg-brand-success/20 text-brand-success border border-brand-success/30 px-2 py-1 rounded-full animate-pulse">
+                         Otomatik Kayıt: AÇIK
+                     </div>
+                 )}
+              </div>
+              
               {history.length === 0 ? (
                 <div className="text-center py-10 text-slate-500">
                   <History className="w-10 h-10 mx-auto mb-2 opacity-50" />
                   <p>Henüz kayıt bulunmuyor.</p>
-                  <p className="text-xs">İyi çektiği yerleri kaydetmek için ana ekrandan ekleme yapın.</p>
+                  <p className="text-xs mt-1">"Otomatik Haritala"yı açıp yürüyüşe çıkın.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
