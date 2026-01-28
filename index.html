@@ -41,13 +41,40 @@
       }
     </script>
     <style>
-      /* Ensure full height for mobile rendering */
-      html, body, #root { height: 100%; margin: 0; padding: 0; overflow-x: hidden; }
-      body { background-color: #0f172a; color: white; -webkit-tap-highlight-color: transparent; }
-      /* Custom scrollbar for webkit */
-      ::-webkit-scrollbar { width: 6px; }
-      ::-webkit-scrollbar-track { background: #0f172a; }
-      ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+      /* Ensure full height for mobile rendering using dynamic viewport height */
+      html { height: -webkit-fill-available; }
+      body { 
+        min-height: 100vh; 
+        min-height: -webkit-fill-available; 
+        background-color: #0f172a; 
+        color: white; 
+        margin: 0; 
+        padding: 0; 
+        overflow-x: hidden; 
+        -webkit-tap-highlight-color: transparent; 
+      }
+      #root { height: 100%; display: flex; flex-direction: column; }
+      
+      /* Loading Spinner Styles */
+      .initial-loader {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        color: #38bdf8;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #1e293b;
+        border-top-color: #38bdf8;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 15px;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
       
       /* Mobile Safe Areas */
       .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
@@ -66,6 +93,14 @@
 </script>
 </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Fallback loading state before React mounts -->
+      <div class="initial-loader">
+        <div class="spinner"></div>
+        <div>Sinyal Avcısı Yükleniyor...</div>
+      </div>
+    </div>
+    <!-- CRITICAL: Load the main application script -->
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>
