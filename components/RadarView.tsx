@@ -1,23 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { LocationData } from '../types';
-import { Radio, MapPin } from 'lucide-react';
+import { Radio, MapPin, Compass, ArrowUp } from 'lucide-react';
 
 interface RadarViewProps {
   location: LocationData | null;
+  targetBearing: number | null; // 0-360 degrees, 0 is North
 }
 
-const RadarView: React.FC<RadarViewProps> = ({ location }) => {
-  const [towers, setTowers] = useState<{id: number, x: number, y: number, dist: string}[]>([]);
+const RadarView: React.FC<RadarViewProps> = ({ location, targetBearing }) => {
+  const [rotation, setRotation] = useState(0);
 
-  // Generate mock nearby towers relative to center
+  // Animate compass rotation
   useEffect(() => {
-    const mockTowers = [
-      { id: 1, x: 30, y: 20, dist: '240m' },
-      { id: 2, x: 70, y: 60, dist: '550m' },
-      { id: 3, x: 20, y: 80, dist: '890m' },
-    ];
-    setTowers(mockTowers);
-  }, []);
+    if (targetBearing !== null) {
+      setRotation(targetBearing);
+    }
+  }, [targetBearing]);
+
+  const getDirectionText = (bearing: number) => {
+    if (bearing >= 337.5 || bearing < 22.5) return "Kuzey";
+    if (bearing >= 22.5 && bearing < 67.5) return "Kuzeydoğu";
+    if (bearing >= 67.5 && bearing < 112.5) return "Doğu";
+    if (bearing >= 112.5 && bearing < 157.5) return "Güneydoğu";
+    if (bearing >= 157.5 && bearing < 202.5) return "Güney";
+    if (bearing >= 202.5 && bearing < 247.5) return "Güneybatı";
+    if (bearing >= 247.5 && bearing < 292.5) return "Batı";
+    if (bearing >= 292.5 && bearing < 337.5) return "Kuzeybatı";
+    return "Bilinmiyor";
+  };
 
   if (!location) {
     return (
@@ -33,60 +43,65 @@ const RadarView: React.FC<RadarViewProps> = ({ location }) => {
     <div className="w-full bg-brand-dark rounded-xl overflow-hidden border border-slate-700 relative">
       <div className="p-4 bg-brand-card border-b border-slate-700 flex justify-between items-center">
         <h2 className="font-bold text-white flex items-center gap-2">
-          <Radio className="w-5 h-5 text-brand-accent" />
-          Baz İstasyonu Radarı
+          <Compass className="w-5 h-5 text-brand-accent" />
+          Sinyal Pusulası
         </h2>
-        <span className="text-xs bg-brand-accent/20 text-brand-accent px-2 py-1 rounded">Aktif</span>
+        <span className="text-xs bg-brand-accent/20 text-brand-accent px-2 py-1 rounded">Canlı</span>
       </div>
 
-      <div className="relative w-full aspect-square max-h-[400px] mx-auto bg-slate-900 overflow-hidden">
+      <div className="relative w-full aspect-square max-h-[400px] mx-auto bg-slate-900 overflow-hidden flex items-center justify-center">
         {/* Grid Lines */}
-        <div className="absolute inset-0 grid grid-cols-4 grid-rows-4">
-            <div className="border-r border-slate-800/50"></div>
-            <div className="border-r border-slate-800/50"></div>
-            <div className="border-r border-slate-800/50"></div>
-            <div className="border-r border-slate-800/50"></div>
-            <div className="col-span-4 border-b border-slate-800/50 h-full"></div>
-            <div className="col-span-4 border-b border-slate-800/50 h-full"></div>
-            <div className="col-span-4 border-b border-slate-800/50 h-full"></div>
+        <div className="absolute inset-0 grid grid-cols-4 grid-rows-4 opacity-20 pointer-events-none">
+            <div className="border-r border-slate-500"></div>
+            <div className="border-r border-slate-500"></div>
+            <div className="border-r border-slate-500"></div>
+            <div className="border-r border-slate-500"></div>
+            <div className="col-span-4 border-b border-slate-500 h-full"></div>
+            <div className="col-span-4 border-b border-slate-500 h-full"></div>
+            <div className="col-span-4 border-b border-slate-500 h-full"></div>
         </div>
 
-        {/* Concentric Circles */}
-        <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-[75%] h-[75%] rounded-full border border-slate-700/50"></div>
-            <div className="absolute w-[50%] h-[50%] rounded-full border border-slate-700/50"></div>
-            <div className="absolute w-[25%] h-[25%] rounded-full border border-slate-700/50"></div>
-        </div>
+        {/* Compass Dial */}
+        <div className="relative w-[80%] h-[80%] rounded-full border-2 border-slate-700 flex items-center justify-center shadow-2xl bg-slate-800/50 backdrop-blur-sm">
+           {/* Cardinal Directions */}
+           <div className="absolute top-2 text-slate-400 font-bold text-xs">N</div>
+           <div className="absolute bottom-2 text-slate-400 font-bold text-xs">S</div>
+           <div className="absolute left-2 text-slate-400 font-bold text-xs">W</div>
+           <div className="absolute right-2 text-slate-400 font-bold text-xs">E</div>
 
-        {/* Radar Sweep Animation */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-accent/10 to-transparent animate-radar-spin rounded-full origin-center" 
-             style={{ clipPath: 'polygon(50% 50%, 100% 0, 100% 50%)' }}>
-        </div>
-
-        {/* User Dot */}
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.8)] z-20">
-            <div className="absolute w-full h-full bg-blue-400 rounded-full animate-ping opacity-75"></div>
-        </div>
-
-        {/* Mock Towers */}
-        {towers.map(tower => (
-            <div 
-                key={tower.id}
-                className="absolute flex flex-col items-center group z-10"
-                style={{ top: `${tower.y}%`, left: `${tower.x}%` }}
-            >
-                <div className="w-3 h-3 bg-brand-warning rounded-full shadow-[0_0_10px_rgba(234,179,8,0.5)]"></div>
-                <div className="bg-slate-800 text-[10px] px-1 rounded text-slate-300 mt-1 opacity-100">
-                    Baz #{tower.id}
+           {/* Signal Arrow */}
+           {targetBearing !== null && (
+             <div 
+               className="absolute w-full h-full transition-transform duration-1000 ease-out flex justify-center"
+               style={{ transform: `rotate(${rotation}deg)` }}
+             >
+                <div className="flex flex-col items-center mt-4">
+                    <ArrowUp className="w-12 h-12 text-brand-success drop-shadow-[0_0_10px_rgba(34,197,94,0.8)] animate-pulse" />
+                    <div className="w-1 h-16 bg-gradient-to-b from-brand-success/50 to-transparent rounded-full mt-1"></div>
                 </div>
-            </div>
-        ))}
+             </div>
+           )}
+
+           {/* Center Dot (User) */}
+           <div className="w-16 h-16 bg-slate-900 rounded-full border-4 border-slate-700 z-10 flex items-center justify-center shadow-inner">
+              <Radio className="w-8 h-8 text-white" />
+           </div>
+        </div>
       </div>
       
-      <div className="p-3 bg-brand-card/50 text-xs text-slate-400 text-center">
-        Konumunuza göre en yakın istasyonlar taranıyor (Simülasyon).
-        <br/>
-        En iyi sinyal için: <span className="text-white font-bold">Kuzey-Doğu</span> yönüne hareket edin.
+      <div className="p-4 bg-brand-card/80 border-t border-slate-700 text-center">
+        {targetBearing !== null ? (
+            <div>
+                <div className="text-xs text-slate-400 mb-1">En Güçlü Sinyal Yönü</div>
+                <div className="text-xl font-bold text-brand-success flex items-center justify-center gap-2">
+                    {getDirectionText(rotation)}
+                    <span className="text-sm text-slate-500 font-normal">({Math.round(rotation)}°)</span>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-2">Bu yöne doğru hareket ederseniz sinyal artabilir.</p>
+            </div>
+        ) : (
+            <p className="text-sm text-slate-400">Yön hesaplanıyor...</p>
+        )}
       </div>
     </div>
   );
