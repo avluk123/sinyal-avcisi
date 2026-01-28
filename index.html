@@ -8,6 +8,8 @@
     <meta name="theme-color" content="#0f172a">
     <meta name="mobile-web-app-capable" content="yes">
     <title>Sinyal Avcısı</title>
+    <!-- Polyfill for module support on older mobile browsers -->
+    <script async src="https://ga.jspm.io/npm:es-module-shims@1.7.0/dist/es-module-shims.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -23,15 +25,24 @@
                 danger: '#ef4444',
               }
             },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              }
+            },
             animation: {
               'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
               'radar-spin': 'spin 4s linear infinite',
+              'fade-in': 'fadeIn 0.5s ease-out forwards',
             }
           }
         }
       }
     </script>
     <style>
+      /* Ensure full height for mobile rendering */
+      html, body, #root { height: 100%; margin: 0; padding: 0; overflow-x: hidden; }
       body { background-color: #0f172a; color: white; -webkit-tap-highlight-color: transparent; }
       /* Custom scrollbar for webkit */
       ::-webkit-scrollbar { width: 6px; }
