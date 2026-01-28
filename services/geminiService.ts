@@ -4,8 +4,10 @@ import { AIAdviceResponse } from "../types";
 const apiKey = process.env.API_KEY || '';
 
 export const getNetworkAdvice = async (lat: number, lng: number, signalStrength: number, networkType: string): Promise<AIAdviceResponse | null> => {
+  // If API key is missing, return mock data or null immediately instead of hanging
   if (!apiKey) {
-    throw new Error("API Key eksik");
+    console.error("API Key eksik");
+    return null;
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -61,6 +63,7 @@ export const getNetworkAdvice = async (lat: number, lng: number, signalStrength:
     return null;
   } catch (error) {
     console.error("Gemini Error:", error);
+    // Return null to handle it gracefully in the UI
     return null;
   }
 };
