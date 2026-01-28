@@ -1,17 +1,17 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AIAdviceResponse } from "../types";
 
-// Directly access the environment variable as per SDK requirements.
-const apiKey = process.env.API_KEY;
-
 export const getNetworkAdvice = async (lat: number, lng: number, signalStrength: number, networkType: string): Promise<AIAdviceResponse | null> => {
+  // Move API key reading inside the function to ensure it captures the env var at runtime
+  const apiKey = process.env.API_KEY;
+
   if (!apiKey) {
     console.error("API Key tanımlanmamış. process.env.API_KEY kontrol edilmeli.");
-    // Fail gracefully if key is missing in dev environment
     return null;
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  // Initialize client explicitly with the key as per rules
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const prompt = `
     Kullanıcı şu anda şu koordinatlarda: Enlem ${lat}, Boylam ${lng}.
