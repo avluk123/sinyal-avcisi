@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Signal, Map, Bot, History, Plus, Navigation, HelpCircle, Check, Play, Pause, Trophy, Share2 } from 'lucide-react';
-import { LocationData, NetworkInfo, SignalLog, AppTab, AIAdviceResponse } from './types';
+import { LocationData, NetworkInfo, SignalLog, AppTab, AIAdviceResponse, BaseStation } from './types';
 import SignalMeter from './components/SignalMeter';
 import RadarView from './components/RadarView';
 import NetworkDetails from './components/NetworkDetails';
@@ -24,6 +24,7 @@ export default function App() {
   const [showDiagnostics, setShowDiagnostics] = useState<boolean>(false);
   const [geoError, setGeoError] = useState<string | null>(null);
   const [targetBearing, setTargetBearing] = useState<number | null>(null);
+  const [baseStations, setBaseStations] = useState<BaseStation[]>([]);
   
   // Automatic Mapping State
   const [autoMap, setAutoMap] = useState<boolean>(false);
@@ -52,12 +53,47 @@ export default function App() {
     let angleDeg = angleRad * (180 / Math.PI);
 
     // Convert to Compass Bearing (0 North, 90 East)
-    // Math: 0 is East, 90 is North.
-    // Bearing = 90 - angle
     let bearing = 90 - angleDeg;
     if (bearing < 0) bearing += 360;
 
     return bearing;
+  };
+
+  // Generate mock base stations around the user
+  const generateBaseStations = (lat: number, lng: number) => {
+    const stations: BaseStation[] = [];
+    const operators: ('Turkcell' | 'Vodafone' | 'Türk Telekom')[] = ['Turkcell', 'Vodafone', 'Türk Telekom'];
+    
+    // Create 4 random stations within ~500m
+    for (let i = 0; i < 4; i++) {
+        // Random offset between -0.004 and 0.004 degrees
+        const latOffset = (Math.random() - 0.5) * 0.008;
+        const lngOffset = (Math.random() - 0.5) * 0.008;
+        const stationLat = lat + latOffset;
+        const stationLng = lng + lngOffset;
+        
+        // Calculate approx distance in meters
+        const R = 6371e3; // metres
+        const φ1 = lat * Math.PI/180;
+        const φ2 = stationLat * Math.PI/180;
+        const Δφ = (stationLat-lat) * Math.PI/180;
+        const Δλ = (stationLng-lng) * Math.PI/180;
+
+        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                  Math.cos(φ1) * Math.cos(φ2) *
+                  Math.sin(Δλ/2) * Math.sin(Δλ/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const dist = R * c;
+
+        stations.push({
+            id: `bs-${i}`,
+            lat: stationLat,
+            lng: stationLng,
+            operator: operators[Math.floor(Math.random() * operators.length)],
+            distance: dist
+        });
+    }
+    return stations;
   };
 
   // 1. Geolocation
@@ -76,13 +112,15 @@ export default function App() {
           setGeoError(null);
           setIsScanning(false);
           
-          // Use deterministic calculation
           const simulatedStrength = calculateSignalFromLocation(lat, lng);
-          // Calculate bearing
           const bearing = calculateBestDirection(lat, lng);
           setTargetBearing(bearing);
           
-          // Add small jitter for realism (+- 2%)
+          // Generate stations only if not already generated or user moved significantly
+          if (baseStations.length === 0) {
+             setBaseStations(generateBaseStations(lat, lng));
+          }
+          
           const jitter = Math.floor(Math.random() * 5) - 2;
           setSignalStrength(Math.min(100, Math.max(0, simulatedStrength + jitter)));
         },
@@ -103,7 +141,7 @@ export default function App() {
       setGeoError("Tarayıcınız konum servisini desteklemiyor.");
       setShowDiagnostics(true);
     }
-  }, []);
+  }, []); // baseStations dependency removed to prevent loop, handled inside logic
 
   // 2. Network Info polling
   useEffect(() => {
@@ -170,12 +208,11 @@ export default function App() {
       if (adviceData) {
         setAdvice(adviceData);
       } else {
-        alert("Yapay zeka şu anda yanıt veremiyor. Lütfen API anahtarını kontrol edin veya daha sonra deneyin.");
+        alert("Yapay zeka analiz yapamadı. API Key eksik veya kota dolmuş olabilir.");
       }
     } catch (e) {
       alert("Bir bağlantı hatası oluştu.");
     } finally {
-      // Ensure loading state is turned off even if there is an error
       setLoadingAdvice(false);
     }
   };
@@ -265,12 +302,12 @@ export default function App() {
       case AppTab.RADAR:
         return (
           <div className="space-y-4 animate-fade-in">
-            <RadarView location={location} targetBearing={targetBearing} />
+            <RadarView location={location} targetBearing={targetBearing} baseStations={baseStations} />
             <div className="bg-brand-card p-4 rounded-xl border border-slate-700">
               <h3 className="text-white font-bold mb-2">Nasıl Kullanılır?</h3>
               <ul className="text-sm text-slate-400 space-y-2 list-disc list-inside">
                 <li>Telefonu yatay tutun ve pusulanın gösterdiği yeşil ok yönüne doğru yavaşça yürüyün.</li>
-                <li>Bu yön, bulunduğunuz noktaya göre sinyalin <strong className="text-brand-success">daha güçlü olduğu</strong> tahmini yönü gösterir.</li>
+                <li>Haritada görünen simgeler yakındaki baz istasyonlarını temsil eder.</li>
               </ul>
             </div>
           </div>
