@@ -20,6 +20,14 @@ export interface SignalLog {
   type: string;
 }
 
+export interface BaseStation {
+  id: string;
+  lat: number;
+  lng: number;
+  operator: 'Turkcell' | 'Vodafone' | 'Türk Telekom';
+  distance: number; // meters
+}
+
 export interface OperatorAdvice {
   name: string;
   suitability: 'Yüksek' | 'Orta' | 'Düşük';
